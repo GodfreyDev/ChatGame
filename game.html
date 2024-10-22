@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game - Fullscreen Experience</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden; /* Prevent scrolling */
+            background-color: #000; /* Background color for areas outside canvas */
+        }
+        #gameContainer {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        canvas {
+            background-color: #000; /* Game background color */
+            image-rendering: pixelated; /* Optional: for pixel art games */
+            max-width: 100%;
+            max-height: 100vh;
+        }
+        #chatInput {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            width: 300px;
+        }
+        #dialogueBox {
+            position: absolute;
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            display: none;
+        }
+        #inventory {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            color: white;
+        }
+        #inventory ul {
+            list-style: none;
+            padding: 0;
+        }
+        #inventory ul li {
+            background-color: rgba(255, 255, 255, 0.1);
+            margin: 5px 0;
+            padding: 5px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        <input type="text" id="chatInput" placeholder="Type your message here..." />
+    </div>
+    <div id="dialogueBox"></div>
+    <div id="inventory">
+        <p>Inventory:</p>
+        <ul id="inventoryList"></ul>
+    </div>
+
+    <script src="https://cdn.socket.io/4.3.2/socket.io.min.js"></script>
+    <script src="game.js"></script>
+    <script>
+        // Event listener for chat input to handle message sending on Enter key
+        document.getElementById('chatInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
