@@ -50,7 +50,7 @@ Before you start, ensure you have the following installed:
 2. Once the server is running, open a browser and navigate to:
 
     ```
-    http://localhost:3000
+    file:///DownloadLocation/ChatGame/game.html
     ```
 
 3. You should now see the game interface and be able to interact with other connected users.
