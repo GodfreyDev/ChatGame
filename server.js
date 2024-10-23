@@ -1,3 +1,54 @@
+/**
+ * @file server.js
+ * @description This file implements a basic multiplayer game server using Node.js, Express, and Socket.IO. 
+ * The server allows players to connect, move around a game world, chat, and interact with items and other players.
+ * Players are assigned random names upon connection, and the server maintains the state of the game world, including 
+ * player positions, inventory, and health.
+ *
+ * @dependencies
+ * - express: Web framework for Node.js
+ * - http: HTTP server library built into Node.js
+ * - socket.io: Library for real-time, bidirectional communication between web clients and servers
+ *
+ * @function getRandomElement(arr)
+ * Returns a random element from an array.
+ *
+ * @function generatePlayerName()
+ * Generates a unique player name by combining a random adjective, noun, and number.
+ *
+ * @function generateItems()
+ * Creates 50 random items (sword, shield, potion) and places them at random positions in the game world.
+ *
+ * @event 'connection'
+ * Listens for new socket connections. When a player connects, they are assigned a name, and their position and state
+ * are added to the game world. The server also sends the current state of all players and items to the new player.
+ *
+ * @event 'playerMovement'
+ * Updates player position and direction when a movement event is received from the client. Broadcasts the updated
+ * information to all other connected players.
+ *
+ * @event 'chatMessage'
+ * Handles chat messages sent by players and broadcasts them to all connected clients.
+ *
+ * @event 'pickupItem'
+ * Handles item pickups by players. The item is removed from the game world and added to the player's inventory.
+ *
+ * @event 'attack'
+ * Handles combat interactions between players. Reduces the health of the target player, and if health reaches 0, the
+ * target player is removed from the game world.
+ *
+ * @event 'disconnect'
+ * Cleans up player data when a player disconnects, broadcasting the disconnection to all other players.
+ *
+ * @constant {string} serverUrl
+ * The server URL is set dynamically based on the environment (production or development).
+ *
+ * @constant {number} PORT
+ * The port number the server listens on, either from the environment or defaulting to 3000.
+ *
+ * @listens {socket.io} on 'connection', 'playerMovement', 'chatMessage', 'pickupItem', 'attack', 'disconnect'
+ */
+
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');

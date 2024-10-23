@@ -1,4 +1,30 @@
 // # game.js
+//
+// This JavaScript file defines the core functionality for an online multiplayer game. 
+// It sets up the game environment, player interactions, and communication with the server. 
+// The game world consists of tiles, rooms, corridors, and objects that players can interact with.
+//
+// Features include:
+// - Player movement and direction management with collision detection for walls and doors.
+// - Dynamic canvas resizing for responsiveness.
+// - Rendering game elements such as players, items, and the environment on a canvas.
+// - Communication with a server via WebSockets for real-time updates between players.
+//
+// Key Variables:
+// - serverUrl: Dynamically sets the server URL depending on the environment (development or production).
+// - TILE_SIZE, WORLD_WIDTH, WORLD_HEIGHT: Define the dimensions of the game world and tiles.
+// - player: Object storing player-specific properties such as position, direction, and sprite animation state.
+// - items, inventory, and players: Manage the various objects and characters present in the game world.
+//
+// Functions Overview:
+// - adjustCanvasSize: Adjusts the canvas dimensions dynamically based on window size.
+// - loadTileImage: Loads the images representing various tiles in the game.
+// - initializeGameWorld, createRoom, createCorridor: Build the structure of the game world with walls, doors, and corridors.
+// - gameLoop: The main loop that updates player movement, renders the game, and handles animations.
+// - updatePlayerPosition: Moves the player based on input and checks for collisions.
+// - handleAnimation: Manages sprite animations for player movement.
+// - updateCameraPosition: Keeps the player's position centered on the screen.
+// - drawBackground, drawItems: Renders the game world and in-game items.
 
 const serverUrl = window.location.hostname === 'godfreydev.github.io'
   ? 'https://cool-accessible-pint.glitch.me'
