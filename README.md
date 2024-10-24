@@ -39,6 +39,14 @@ Before you start, ensure you have the following installed:
     npm install
     ```
 
+## Running the Client
+
+1. Start the Client with the following command:
+
+    ```bash
+    start game.html
+    ```
+
 ## Running the Server
 
 1. Start the server with the following command:
@@ -47,11 +55,6 @@ Before you start, ensure you have the following installed:
     node server.js
     ```
 
-2. Once the server is running, open a browser and navigate to:
-
-    ```
-    file:///DownloadLocation/ChatGame/game.html
-    ```
 
 3. You should now see the game interface and be able to interact with other connected users.
 
