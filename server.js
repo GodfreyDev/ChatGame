@@ -66,7 +66,6 @@
  *
  * @listens {socket.io} on 'connection', 'playerMovement', 'chatMessage', 'pickupItem', 'attack', 'tradeRequest', 'acceptTrade', 'declineTrade', 'disconnect'
  */
-
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -189,7 +188,7 @@ function getTileAt(x, y) {
 
 // Safe zones
 const safeZones = [
-  { x: 25 * TILE_SIZE, y: 25 * TILE_SIZE, width: 30 * TILE_SIZE, height: 30 * TILE_SIZE },
+  { x: 5 * TILE_SIZE, y: 5 * TILE_SIZE, width: 20 * TILE_SIZE, height: 20 * TILE_SIZE },
   // Add more safe zones if needed
 ];
 
@@ -264,7 +263,7 @@ function initializeEnemies() {
 function getValidSpawnPoint() {
   // Define spawn areas (safe zones)
   const spawnAreas = [
-    { x: 25 * TILE_SIZE, y: 25 * TILE_SIZE, width: 30 * TILE_SIZE, height: 30 * TILE_SIZE },
+    { x: 5 * TILE_SIZE, y: 5 * TILE_SIZE, width: 20 * TILE_SIZE, height: 20 * TILE_SIZE },
     // Add more spawn areas as needed
   ];
 
@@ -428,16 +427,38 @@ io.on('connection', (socket) => {
     maxHealth: 100,
     inventory: [],
     equippedItem: null,
-    copper: 0
+    copper: 0,
+    frameIndex: 0
   };
 
-  // Emit current players, items, and enemies to the newly connected player
-  socket.emit('currentPlayers', players);
+  // Function to get sanitized player data
+  function getPlayerData(player) {
+    return {
+      id: player.id,
+      name: player.name,
+      x: player.x,
+      y: player.y,
+      direction: player.direction,
+      moving: player.moving,
+      width: player.width,
+      height: player.height,
+      health: player.health,
+      maxHealth: player.maxHealth,
+      frameIndex: player.frameIndex,
+    };
+  }
+
+  // Emit current players to the newly connected player
+  socket.emit('currentPlayers', Object.fromEntries(
+    Object.values(players).map(p => [p.id, getPlayerData(p)])
+  ));
+
+  // Emit current items and enemies
   socket.emit('currentItems', items);
   socket.emit('updateEnemies', enemies);
 
   // Broadcast new player's arrival to other players
-  socket.broadcast.emit('newPlayer', players[socket.id]);
+  socket.broadcast.emit('newPlayer', getPlayerData(players[socket.id]));
 
   // Update player position and direction based on movement
   socket.on('playerMovement', (data) => {
@@ -492,7 +513,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Updated attack handler to prevent attacks in safe zones
+  // Updated attack handler to award a code instead of copper when an enemy is defeated
   socket.on('attack', (data) => {
     const attacker = players[socket.id];
     const targetId = data.targetId;
@@ -501,42 +522,11 @@ io.on('connection', (socket) => {
     if (weapon && weapon.damage) {
       damage = weapon.damage;
     }
-
-    // Check if the attacker is in a safe zone
-    if (isInSafeZone(attacker.x, attacker.y)) {
-      socket.emit('attackError', 'You cannot attack from a safe zone.');
-      return;
-    }
-
-    // Attack player
+  
+    // Prevent attacking other players
     if (players[targetId]) {
-      const target = players[targetId];
-      // Check if the target is in a safe zone
-      if (isInSafeZone(target.x, target.y)) {
-        socket.emit('attackError', 'You cannot attack a player in a safe zone.');
-        return;
-      }
-      // Apply shield defense if equipped
-      const shield = target.inventory.find(item => item.type === 'shield');
-      if (shield) {
-        damage -= shield.defense;
-        damage = Math.max(0, damage);
-      }
-      target.health -= damage;
-      if (target.health <= 0) {
-        target.health = 0;
-        io.emit('playerKilled', targetId);
-        io.to(targetId).emit('playerDamaged', { playerId: targetId, health: 0 });
-        // Remove player data
-        delete players[targetId];
-        io.emit('playerDisconnected', targetId);
-        const targetSocket = io.sockets.sockets.get(targetId);
-        if (targetSocket) {
-          targetSocket.disconnect(true);
-        }
-      } else {
-        io.emit('playerDamaged', { playerId: targetId, health: target.health });
-      }
+      // Player is trying to attack another player
+      socket.emit('attackError', 'You cannot attack other players.');
     }
     // Attack enemy
     else if (enemies[targetId]) {
@@ -544,19 +534,22 @@ io.on('connection', (socket) => {
       enemy.health -= damage;
       if (enemy.health <= 0) {
         enemy.health = 0;
-        // Reward player with copper
-        const player = players[socket.id];
-        player.copper += 10; // Award 10 copper
-        io.to(socket.id).emit('updateCopper', player.copper);
+  
+        // Award copper to player
+        attacker.copper += 10; // Award 10 copper
+        io.to(socket.id).emit('updateCopper', attacker.copper);
+  
+        // Remove the enemy from the game
         delete enemies[targetId];
         io.emit('enemyKilled', targetId);
-
-        // Generate a code as a reward
+  
+        // Generate a code as a reward (optional)
         const rewardCode = generateRewardCode();
         io.to(socket.id).emit('rewardCode', rewardCode);
       }
     }
   });
+  
 
   // Handle trade requests
   socket.on('tradeRequest', (data) => {

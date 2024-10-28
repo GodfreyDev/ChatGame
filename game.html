@@ -85,7 +85,7 @@
     #chatContainer {
       position: absolute;
       bottom: 10px;
-      right: 10px;
+      left: 10px; /* Moved to the left side */
       width: 300px;
       height: 40%; /* Increased height */
       overflow-y: auto;
@@ -106,6 +106,13 @@
     #chatInput {
       width: 100%;
       box-sizing: border-box;
+    }
+    .timestamp {
+      color: gray;
+      font-size: 0.8em;
+    }
+    #chatLog em {
+      color: yellow;
     }
   </style>
 </head>

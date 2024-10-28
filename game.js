@@ -39,8 +39,6 @@
 
 // game.js
 
-// ... [Previous comments and imports remain unchanged] ...
-
 const serverUrl = window.location.hostname === 'godfreydev.github.io'
   ? 'https://cool-accessible-pint.glitch.me'
   : 'http://localhost:3000';
@@ -280,10 +278,42 @@ function drawProjectiles() {
 
 // Send chat message to the server
 function sendMessage() {
-  const messageInput = document.getElementById('chatInput'), message = messageInput.value.trim();
+  const messageInput = document.getElementById('chatInput');
+  const message = messageInput.value.trim();
   if (message) {
-    socket.emit('chatMessage', { message });
+    if (message.startsWith('/')) {
+      handleCommand(message);
+    } else {
+      socket.emit('chatMessage', { message });
+    }
     messageInput.value = '';
+  }
+}
+
+// Handle chat commands
+function handleCommand(message) {
+  const parts = message.split(' ');
+  const command = parts[0].substring(1).toLowerCase();
+  const args = parts.slice(1);
+
+  if (command === 'msg' || command === 'w') {
+    const recipientName = args[0];
+    const messageText = args.slice(1).join(' ');
+    if (recipientName && messageText) {
+      const recipient = Object.values(players).find(p => p.name === recipientName);
+      if (recipient) {
+        socket.emit('privateMessage', { recipientId: recipient.id, message: messageText });
+      } else {
+        showMessage(`Player '${recipientName}' not found.`);
+      }
+    } else {
+      showMessage('Usage: /msg <playerName> <message>');
+    }
+  } else if (command === 'list' || command === 'players') {
+    const playerNames = Object.values(players).map(p => p.name).join(', ');
+    showMessage(`Online players: ${playerNames}`);
+  } else {
+    showMessage(`Unknown command: ${command}`);
   }
 }
 
@@ -341,104 +371,65 @@ socket.on('attackError', message => {
 
 // **Updated updatePlayerPosition function with improved collision handling**
 function updatePlayerPosition(deltaTime) {
-    let dx = 0, dy = 0;
-    player.moving = false;
-  
-    if (keysPressed['a'] || keysPressed['ArrowLeft']) { dx -= movementSpeed; player.moving = true; }
-    if (keysPressed['d'] || keysPressed['ArrowRight']) { dx += movementSpeed; player.moving = true; }
-    if (keysPressed['w'] || keysPressed['ArrowUp']) { dy -= movementSpeed; player.moving = true; }
-    if (keysPressed['s'] || keysPressed['ArrowDown']) { dy += movementSpeed; player.moving = true; }
-  
-    if (dy < 0 && dx < 0) player.direction = DIRECTIONS.UP_LEFT;
-    else if (dy < 0 && dx > 0) player.direction = DIRECTIONS.UP_RIGHT;
-    else if (dy > 0 && dx < 0) player.direction = DIRECTIONS.DOWN_LEFT;
-    else if (dy > 0 && dx > 0) player.direction = DIRECTIONS.DOWN_RIGHT;
-    else if (dy < 0) player.direction = DIRECTIONS.UP;
-    else if (dy > 0) player.direction = DIRECTIONS.DOWN;
-    else if (dx < 0) player.direction = DIRECTIONS.LEFT;
-    else if (dx > 0) player.direction = DIRECTIONS.RIGHT;
-  
-    const newX = player.x + dx * deltaTime;
-    const newY = player.y + dy * deltaTime;
-  
-    // Check collision for each corner of the player sprite
-    const topLeftTile = gameWorld[Math.floor((newY - player.height / 2) / TILE_SIZE)][Math.floor((newX - player.width / 2) / TILE_SIZE)];
-    const topRightTile = gameWorld[Math.floor((newY - player.height / 2) / TILE_SIZE)][Math.floor((newX + player.width / 2) / TILE_SIZE)];
-    const bottomLeftTile = gameWorld[Math.floor((newY + player.height / 2) / TILE_SIZE)][Math.floor((newX - player.width / 2) / TILE_SIZE)];
-    const bottomRightTile = gameWorld[Math.floor((newY + player.height / 2) / TILE_SIZE)][Math.floor((newX + player.width / 2) / TILE_SIZE)];
-  
-    // Check if any of the corners collide with a wall
-    const collidesWithWall = topLeftTile === TILE_WALL || topRightTile === TILE_WALL || bottomLeftTile === TILE_WALL || bottomRightTile === TILE_WALL;
-  
-    // Check if the player is colliding with a door
-    const collidesWithDoor = topLeftTile === TILE_DOOR || topRightTile === TILE_DOOR || bottomLeftTile === TILE_DOOR || bottomRightTile === TILE_DOOR;
-  
-    if (!collidesWithWall && !collidesWithDoor) {
-      player.x = newX;
-      player.y = newY;
+  let dx = 0, dy = 0;
+  player.moving = false;
+
+  if (keysPressed['a'] || keysPressed['ArrowLeft']) { dx -= movementSpeed; player.moving = true; }
+  if (keysPressed['d'] || keysPressed['ArrowRight']) { dx += movementSpeed; player.moving = true; }
+  if (keysPressed['w'] || keysPressed['ArrowUp']) { dy -= movementSpeed; player.moving = true; }
+  if (keysPressed['s'] || keysPressed['ArrowDown']) { dy += movementSpeed; player.moving = true; }
+
+  if (dy < 0 && dx < 0) player.direction = DIRECTIONS.UP_LEFT;
+  else if (dy < 0 && dx > 0) player.direction = DIRECTIONS.UP_RIGHT;
+  else if (dy > 0 && dx < 0) player.direction = DIRECTIONS.DOWN_LEFT;
+  else if (dy > 0 && dx > 0) player.direction = DIRECTIONS.DOWN_RIGHT;
+  else if (dy < 0) player.direction = DIRECTIONS.UP;
+  else if (dy > 0) player.direction = DIRECTIONS.DOWN;
+  else if (dx < 0) player.direction = DIRECTIONS.LEFT;
+  else if (dx > 0) player.direction = DIRECTIONS.RIGHT;
+
+  const newX = player.x + dx * deltaTime;
+  const newY = player.y + dy * deltaTime;
+
+  // Check collision for each corner of the player sprite
+  const topLeftTile = getTileAt(newX - player.width / 2, newY - player.height / 2);
+  const topRightTile = getTileAt(newX + player.width / 2 - 1, newY - player.height / 2);
+  const bottomLeftTile = getTileAt(newX - player.width / 2, newY + player.height / 2 - 1);
+  const bottomRightTile = getTileAt(newX + player.width / 2 - 1, newY + player.height / 2 - 1);
+
+  // Impassable tiles (doors are now pass-through)
+  const impassableTiles = [TILE_WALL];
+
+  const collidesWithImpassable = [topLeftTile, topRightTile, bottomLeftTile, bottomRightTile]
+    .some(tile => impassableTiles.includes(tile));
+
+  if (!collidesWithImpassable) {
+    player.x = newX;
+    player.y = newY;
+  }
+
+  // Check for item pickup
+  Object.values(items).forEach(item => {
+    if (Math.abs(player.x - item.x) < TILE_SIZE && Math.abs(player.y - item.y) < TILE_SIZE) {
+      socket.emit('pickupItem', item.id);
     }
-  
-    if (collidesWithDoor) {
-        // Calculate the door's center position
-        const doorCenterX = Math.floor((newX + player.width / 2) / TILE_SIZE) * TILE_SIZE + TILE_SIZE / 2;
-        const doorCenterY = Math.floor((newY + player.height / 2) / TILE_SIZE) * TILE_SIZE + TILE_SIZE / 2;
-    
-        // Calculate the player's distance from the door's center
-        const distanceX = doorCenterX - player.x;
-        const distanceY = doorCenterY - player.y;
-    
-        // Adjust the player's position to smoothly pass through the door
-        if (Math.abs(distanceX) < TILE_SIZE / 4) {
-          player.x += distanceX * 0.2; // Adjust the player's x-position gradually
-        }
-        if (Math.abs(distanceY) < TILE_SIZE / 4) {
-          player.y += distanceY * 0.2; // Adjust the player's y-position gradually
-        }
-    
-        // Move the player through the door based on their direction
-        if (player.direction === DIRECTIONS.UP) {
-          player.y -= player.height / 4; // Adjust the player's y-position gradually
-        } else if (player.direction === DIRECTIONS.DOWN) {
-          player.y += player.height / 4; // Adjust the player's y-position gradually
-        } else if (player.direction === DIRECTIONS.LEFT) {
-          player.x -= player.width / 4; // Adjust the player's x-position gradually
-        } else if (player.direction === DIRECTIONS.RIGHT) {
-          player.x += player.width / 4; // Adjust the player's x-position gradually
-        }
-      }
-  
-    // Check for item pickup
-    Object.values(items).forEach(item => {
-      if (Math.abs(player.x - item.x) < TILE_SIZE && Math.abs(player.y - item.y) < TILE_SIZE) {
-        socket.emit('pickupItem', item.id);
-      }
-    });
-  
-    // Emit movement if position or frameIndex changed
-    if (newX !== player.x || newY !== player.y || player.frameIndex !== player.lastFrameIndex) {
-      player.lastFrameIndex = player.frameIndex;
-      socket.emit('playerMovement', { x: player.x, y: player.y, direction: player.direction, frameIndex: player.frameIndex });
-    }
-  }  
+  });
+
+  // Emit movement if position or frameIndex changed
+  if (dx !== 0 || dy !== 0 || player.frameIndex !== player.lastFrameIndex) {
+    player.lastFrameIndex = player.frameIndex;
+    socket.emit('playerMovement', { x: player.x, y: player.y, direction: player.direction, frameIndex: player.frameIndex, health: player.health });
+  }
+}
 
 // Helper function to check collision at a given position
-function checkCollision(x, y) {
-  const corners = [
-    { x: x - player.width / 2, y: y - player.height / 2 }, // Top-left
-    { x: x + player.width / 2 - 1, y: y - player.height / 2 }, // Top-right
-    { x: x - player.width / 2, y: y + player.height / 2 - 1 }, // Bottom-left
-    { x: x + player.width / 2 - 1, y: y + player.height / 2 - 1 } // Bottom-right
-  ];
-
-  for (let corner of corners) {
-    const tileX = Math.floor(corner.x / TILE_SIZE);
-    const tileY = Math.floor(corner.y / TILE_SIZE);
-    const tile = gameWorld[tileY]?.[tileX];
-    if (tile === TILE_WALL) {
-      return true; // Collision detected
-    }
+function getTileAt(x, y) {
+  const tileX = Math.floor(x / TILE_SIZE);
+  const tileY = Math.floor(y / TILE_SIZE);
+  if (tileX < 0 || tileX >= WORLD_WIDTH || tileY < 0 || tileY >= WORLD_HEIGHT) {
+    return TILE_WALL; // Treat out-of-bounds as wall
   }
-  return false; // No collision
+  return gameWorld[tileY][tileX];
 }
 
 // Handle animation based on player movement and attacking
@@ -483,7 +474,7 @@ function drawSafeZones() {
   ctx.lineWidth = 2;
 
   safeZones.forEach(zone => {
-    ctx.strokeRect(zone.x, zone.y, zone.width, zone.height);
+    ctx.strokeRect(zone.x - cameraX, zone.y - cameraY, zone.width, zone.height);
   });
 }
 
@@ -784,6 +775,7 @@ function getNearbyPlayers(range) {
     return false;
   });
 }
+
 // Handle incoming trade requests
 socket.on('tradeRequest', data => {
   const accept = confirm(`${data.senderName} wants to trade their ${data.offeredItem.type} for your ${data.requestedItem.type}. Accept?`);
@@ -809,6 +801,11 @@ socket.on('tradeError', message => {
 // Handle trade declined
 socket.on('tradeDeclined', data => {
   alert(`Player declined your trade request.`);
+});
+
+// Handle code rewards
+socket.on('rewardCode', code => {
+  alert(`You have received a reward code: ${code}`);
 });
 
 // After receiving the current players from the server and setting up the local player
@@ -855,11 +852,19 @@ socket.on('playerDisconnected', id => delete players[id]);
 // Handle incoming chat messages and update chat log
 socket.on('chatMessage', data => {
   const chatLog = document.getElementById('chatLog');
-  const playerName = players[data.playerId] ? players[data.playerId].name : 'Unknown';
+  let playerName;
+  if (data.playerId === player.id) {
+    playerName = player.name;
+  } else if (players[data.playerId]) {
+    playerName = players[data.playerId].name;
+  } else {
+    playerName = 'Unknown';
+  }
   const messageElement = document.createElement('p');
-  messageElement.textContent = `${playerName}: ${data.message}`;
+  const timestamp = new Date().toLocaleTimeString();
+  messageElement.innerHTML = `<span class="timestamp">[${timestamp}]</span> <strong>${playerName}:</strong> ${data.message}`;
   chatLog.appendChild(messageElement);
-  chatLog.scrollTop = chatLog.scrollHeight; // Scroll to the bottom
+  chatLog.scrollTop = chatLog.scrollHeight;
 
   // Optionally display the message above the player's head for a few seconds
   playerMessages[data.playerId] = data.message;
@@ -868,7 +873,13 @@ socket.on('chatMessage', data => {
 
 // Handle private messages
 socket.on('privateMessage', data => {
-  showMessage(`Private message from ${players[data.senderId].name}: ${data.message}`);
+  const senderName = players[data.senderId] ? players[data.senderId].name : 'Unknown';
+  const chatLog = document.getElementById('chatLog');
+  const messageElement = document.createElement('p');
+  const timestamp = new Date().toLocaleTimeString();
+  messageElement.innerHTML = `<span class="timestamp">[${timestamp}]</span> <em>Private message from ${senderName}:</em> ${data.message}`;
+  chatLog.appendChild(messageElement);
+  chatLog.scrollTop = chatLog.scrollHeight;
 });
 
 // Initialize the game after all assets are loaded
@@ -903,6 +914,24 @@ function updateInventoryDisplay() {
     if (player.equippedItem === item) {
       li.style.backgroundColor = 'yellow';
     }
+
+    // Add an Equip button
+    const equipButton = document.createElement('button');
+    equipButton.textContent = 'Equip';
+    equipButton.onclick = () => {
+      player.equippedItem = item;
+      updateInventoryDisplay();
+    };
+    li.appendChild(equipButton);
+
+    // Add a Trade button
+    const tradeButton = document.createElement('button');
+    tradeButton.textContent = 'Trade';
+    tradeButton.onclick = () => {
+      initiateTrade(index);
+    };
+    li.appendChild(tradeButton);
+
     inventoryList.appendChild(li);
   });
 }
@@ -959,14 +988,4 @@ function updateEnemyAnimations(deltaTime) {
       enemy.animationTimer = 0;
     }
   });
-}
-
-// Helper function to get tile at a specific position
-function getTileAt(x, y) {
-  const tileX = Math.floor(x / TILE_SIZE);
-  const tileY = Math.floor(y / TILE_SIZE);
-  if (tileX < 0 || tileX >= WORLD_WIDTH || tileY < 0 || tileY >= WORLD_HEIGHT) {
-    return TILE_WALL; // Treat out-of-bounds as wall
-  }
-  return gameWorld[tileY][tileX];
 }
