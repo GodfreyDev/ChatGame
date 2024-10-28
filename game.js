@@ -474,7 +474,7 @@ function drawSafeZones() {
   ctx.lineWidth = 2;
 
   safeZones.forEach(zone => {
-    ctx.strokeRect(zone.x - cameraX, zone.y - cameraY, zone.width, zone.height);
+    ctx.strokeRect(zone.x, zone.y, zone.width, zone.height);
   });
 }
 

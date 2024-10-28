@@ -24,7 +24,6 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Game - Fullscreen Experience</title>
   <style>
     body, html {
@@ -67,7 +66,7 @@
     #inventory {
       position: absolute;
       top: 10px;
-      right: 10px; /* Moved inventory back to the right side */
+      right: 10px;
       color: white;
       z-index: 10; /* Ensure it stays above the canvas */
     }
@@ -85,9 +84,9 @@
     #chatContainer {
       position: absolute;
       bottom: 10px;
-      left: 10px; /* Moved to the left side */
+      left: 10px;
       width: 300px;
-      height: 40%; /* Increased height */
+      height: 40%;
       overflow-y: auto;
       z-index: 10; /* Ensure it stays above the canvas */
     }
@@ -96,7 +95,7 @@
       color: white;
       padding: 5px;
       border-radius: 5px;
-      height: calc(100% - 40px); /* Adjusted to fill container */
+      height: calc(100% - 40px);
       overflow-y: auto;
       margin-bottom: 5px;
     }
@@ -114,6 +113,34 @@
     #chatLog em {
       color: yellow;
     }
+    /* Styles for the trading modal */
+    #tradeModal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.5);
+      z-index: 20; /* Ensure it stays above other elements */
+      display: none; /* Hidden by default */
+      justify-content: center;
+      align-items: center;
+    }
+
+    #tradeModalContent {
+      background-color: white;
+      padding: 20px;
+      border-radius: 5px;
+    }
+
+    #tradeModalContent h2 {
+      margin-top: 0;
+    }
+
+    #tradeModalContent button {
+      margin-top: 10px;
+      margin-right: 10px;
+    }
   </style>
 </head>
 <body>
@@ -127,6 +154,12 @@
     <div id="inventory">
       <p>Inventory:</p>
       <ul id="inventoryList"></ul>
+    </div>
+    <!-- Trading Modal -->
+    <div id="tradeModal">
+      <div id="tradeModalContent">
+        <!-- Trade UI elements will go here -->
+      </div>
     </div>
   </div>
 
