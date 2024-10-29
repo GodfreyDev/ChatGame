@@ -19,7 +19,6 @@
   - `socket.io`: For real-time bidirectional communication between players.
   - `game.js`: This JavaScript file contains the game logic and socket management.
 -->
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -30,30 +29,130 @@
       margin: 0;
       padding: 0;
       height: 100%;
-      overflow: hidden; /* Prevent scrolling */
-      background-color: #000; /* Background color for areas outside canvas */
+      overflow: hidden;
+      background-color: #000;
+      font-family: Arial, sans-serif;
     }
+
     #gameContainer {
       position: relative;
       width: 100%;
       height: 100%;
     }
+
     canvas {
-      background-color: #000; /* Game background color */
-      image-rendering: pixelated; /* Optional: for pixel art games */
+      background-color: #000;
+      image-rendering: pixelated;
       width: 100%;
       height: 100%;
+      display: block;
     }
-    #chatInput {
+
+    #chatContainer {
       position: absolute;
-      bottom: 10px;
-      right: 10px;
-      width: 100%;
-      z-index: 10; /* Ensure it stays above the canvas */
+      bottom: 20px;
+      left: 20px;
+      width: 350px;
+      max-height: 50%;
+      background-color: rgba(0, 0, 0, 0.6);
+      border-radius: 8px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      z-index: 10;
+      box-shadow: 0 0 10px rgba(0,0,0,0.5);
+      transition: all 0.3s ease;
     }
+
+    @media (max-width: 768px) {
+      #chatContainer {
+        width: 90%;
+        left: 5%;
+        bottom: 10px;
+        max-height: 40%;
+      }
+    }
+
+    #chatLog {
+      background-color: rgba(30, 30, 30, 0.9);
+      font-size: 20px;
+      color: #f1f1f1;
+      padding: 15px;
+      border-radius: 8px;
+      flex: 1;
+      overflow-y: auto;
+      margin-bottom: 10px;
+      box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+      transition: all 0.3s ease;
+    }
+
+    #chatLog::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    #chatLog::-webkit-scrollbar-thumb {
+      background-color: rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+    }
+
+    #chatLog::-webkit-scrollbar-track {
+      background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .message {
+      margin: 5px 0;
+      padding: 8px;
+      border-radius: 5px;
+      background-color: rgba(255, 255, 255, 0.1);
+      transition: background-color 0.3s ease;
+    }
+
+    .message.user {
+      background-color: rgba(0, 123, 255, 0.1);
+    }
+
+    .message.system {
+      background-color: rgba(255, 165, 0, 0.1);
+      font-style: italic;
+    }
+
+    .timestamp {
+      display: block;
+      color: #aaa;
+      font-size: 0.75em;
+      margin-top: 2px;
+    }
+
+    #chatLog em {
+      color: #ffd700;
+    }
+
+    #chatInput {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 5px;
+      box-sizing: border-box;
+      font-size: 1em;
+      background-color: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      transition: background-color 0.3s ease;
+    }
+
+    #chatInput::placeholder {
+      color: #ccc;
+    }
+
+    #chatInput:focus {
+      outline: none;
+      background-color: rgba(255, 255, 255, 0.2);
+    }
+
     #dialogueBox {
       position: absolute;
-      bottom: 50px;
+
+      bottom: 80px;
       left: 50%;
       transform: translateX(-50%);
       background-color: rgba(0, 0, 0, 0.8);
@@ -61,59 +160,72 @@
       padding: 10px;
       border-radius: 5px;
       display: none;
-      z-index: 10; /* Ensure it stays above the canvas */
+      z-index: 15;
+      box-shadow: 0 0 10px rgba(0,0,0,0.5);
+      transition: all 0.3s ease;
     }
+
     #inventory {
       position: absolute;
+      font-size: 20px;
       top: 10px;
       right: 10px;
       color: white;
-      z-index: 10; /* Ensure it stays above the canvas */
+      z-index: 12;
+      background-color: rgba(0, 0, 0, 0.5);
+      padding: 10px;
+      border-radius: 5px;
+      max-width: 200px;
+      transition: all 0.3s ease;
     }
+
+    #inventory p {
+      margin: 0 0 5px 0;
+      font-weight: bold;
+    }
+
     #inventory ul {
       list-style: none;
       padding: 0;
+      margin: 0;
+      max-height: 150px;
+      overflow-y: auto;
     }
+
     #inventory ul li {
       background-color: rgba(255, 255, 255, 0.1);
       margin: 5px 0;
       padding: 5px;
       border-radius: 3px;
       cursor: pointer;
+      transition: background-color 0.3s ease;
     }
-    #chatContainer {
+
+    #inventory ul li:hover {
+      background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    #tradeButton {
+      width: 150px;
+      height: 75px;
+      font-size: 25px;
       position: absolute;
-      bottom: 10px;
-      left: 10px;
-      width: 300px;
-      height: 40%;
-      overflow-y: auto;
-      z-index: 10; /* Ensure it stays above the canvas */
-    }
-    #chatLog {
-      background-color: rgba(0, 0, 0, 0.7);
+      bottom: 40px;
+      right: 40px;
+      z-index: 10;
+      padding: 10px 20px;
+      background-color: #28a745;
       color: white;
-      padding: 5px;
+      border: none;
       border-radius: 5px;
-      height: calc(100% - 40px);
-      overflow-y: auto;
-      margin-bottom: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
     }
-    #chatLog p {
-      margin: 0;
+
+    #tradeButton:hover {
+      background-color: #218838;
     }
-    #chatInput {
-      width: 100%;
-      box-sizing: border-box;
-    }
-    .timestamp {
-      color: gray;
-      font-size: 0.8em;
-    }
-    #chatLog em {
-      color: yellow;
-    }
-    /* Styles for the trading modal */
+
     #tradeModal {
       position: fixed;
       top: 0;
@@ -121,50 +233,150 @@
       width: 100%;
       height: 100%;
       background-color: rgba(0,0,0,0.5);
-      z-index: 20; /* Ensure it stays above other elements */
-      display: none; /* Hidden by default */
+      z-index: 20;
+      display: none;
       justify-content: center;
       align-items: center;
+      transition: all 0.3s ease;
     }
 
     #tradeModalContent {
-      background-color: white;
+      background-color: #fff;
       padding: 20px;
       border-radius: 5px;
+      width: 90%;
+      max-width: 500px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.5);
+      transition: all 0.3s ease;
     }
 
     #tradeModalContent h2 {
       margin-top: 0;
+      margin-bottom: 15px;
+    }
+
+    #tradeModalContent label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+
+    #tradeModalContent select,
+    #tradeModalContent input[type="number"] {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 15px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+
+    #tradeModalContent ul {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 15px 0;
+      max-height: 150px;
+      overflow-y: auto;
+    }
+
+    #tradeModalContent ul li {
+      background-color: rgba(0, 123, 255, 0.1);
+      margin: 5px 0;
+      padding: 8px;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+
+    #tradeModalContent ul li.selected {
+      background-color: rgba(0, 123, 255, 0.3);
     }
 
     #tradeModalContent button {
+      padding: 10px 15px;
       margin-top: 10px;
       margin-right: 10px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+
+    #sendTradeRequest {
+      background-color: #007bff;
+      color: white;
+    }
+
+    #sendTradeRequest:hover {
+      background-color: #0069d9;
+    }
+
+    #closeTradeModal {
+      background-color: #dc3545;
+      color: white;
+    }
+
+    #closeTradeModal:hover {
+      background-color: #c82333;
     }
   </style>
 </head>
 <body>
   <div id="gameContainer">
     <canvas id="gameCanvas"></canvas>
+    
+    <!-- Chat Interface -->
     <div id="chatContainer">
-      <div id="chatLog"></div>
+      <div id="chatLog">
+        <!-- Messages -->
+        <div class="message user">
+          <span class="text">Welcome everyone!</span>
+        </div>
+        <div class="message system">
+          <span class="text">You have joined the game.</span>
+        </div>
+      </div>
       <input type="text" id="chatInput" placeholder="Type your message here..." />
     </div>
+    
+    <!-- Dialogue Box -->
     <div id="dialogueBox"></div>
+    
+    <!-- Inventory -->
     <div id="inventory">
       <p>Inventory:</p>
-      <ul id="inventoryList"></ul>
+      <ul id="inventoryList">
+      </ul>
     </div>
-    <!-- Trading Modal -->
+    
+    <!-- Trade Button -->
+    <button id="tradeButton">Trade</button>
+    
+    <!-- Trade Modal -->
     <div id="tradeModal">
       <div id="tradeModalContent">
-        <!-- Trade UI elements will go here -->
+        <h2>Trade with Player</h2>
+        <label for="playerSelect">Select Player:</label>
+        <select id="playerSelect">
+          <option value="" disabled selected>Select a player</option>
+        </select>
+        
+        <h3>Your Items</h3>
+        <ul id="yourItems">
+        </ul>
+        
+        <h3>Offer Copper</h3>
+        <input type="number" id="offerCopper" min="0" value="0" />
+        
+        <button id="sendTradeRequest">Send Trade Request</button>
+        <button id="closeTradeModal">Cancel</button>
       </div>
     </div>
   </div>
 
   <script src="https://cdn.socket.io/4.3.2/socket.io.min.js"></script>
   <script src="game.js"></script>
+  
   <script>
     // Event listener for chat input to handle message sending on Enter key
     document.getElementById('chatInput').addEventListener('keypress', function(e) {
@@ -173,5 +385,6 @@
       }
     });
   </script>
+  
 </body>
 </html>

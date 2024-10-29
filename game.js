@@ -56,15 +56,25 @@ const WORLD_WIDTH = 200;
 const WORLD_HEIGHT = 200;
 
 // Tile types
+const tileImages = {};
+
 const TILE_WALL = 1;
 const TILE_DOOR = 2;
 const TILE_FLOOR = 3;
+const TILE_WATER = 4;
+const TILE_GRASS = 5;
+const TILE_SAND = 6;
+const TILE_BRIDGE = 7;
+
+const tileTypes = [TILE_WALL, TILE_DOOR, TILE_FLOOR, TILE_WATER, TILE_GRASS, TILE_SAND, TILE_BRIDGE];
+const impassableTiles = [TILE_WALL, TILE_WATER];
 
 // Game world array
 let gameWorld = [];
+
 // Safe zones
 const safeZones = [
-  { x: 25 * TILE_SIZE, y: 25 * TILE_SIZE, width: 30 * TILE_SIZE, height: 30 * TILE_SIZE },
+  { x: 20 * TILE_SIZE, y: 50 * TILE_SIZE, width: 40 * TILE_SIZE, height: 30 * TILE_SIZE },
   // Add more safe zones if needed
 ];
 
@@ -111,17 +121,16 @@ adjustCanvasSize();
 window.addEventListener('resize', adjustCanvasSize);
 
 // Load tile images
-const tileImages = {};
-const tileTypes = [TILE_FLOOR, TILE_WALL, TILE_DOOR];
-
 function loadTileImages(callback) {
   let loadedImages = 0;
+  const totalImages = tileTypes.length;
+
   tileTypes.forEach(type => {
     tileImages[type] = new Image();
     tileImages[type].src = `Images/tile_${type}.png`;
     tileImages[type].onload = () => {
       loadedImages++;
-      if (loadedImages === tileTypes.length) {
+      if (loadedImages === totalImages) {
         callback();
       }
     };
@@ -157,31 +166,71 @@ function loadSpriteImages(callback) {
 
 // Initialize the game world
 function initializeGameWorld() {
+  // Fill the world with grass
   for (let y = 0; y < WORLD_HEIGHT; y++) {
     gameWorld[y] = [];
     for (let x = 0; x < WORLD_WIDTH; x++) {
-      if (x === 0 || x === WORLD_WIDTH - 1 || y === 0 || y === WORLD_HEIGHT - 1) {
-        gameWorld[y][x] = TILE_WALL;
-      } else {
-        gameWorld[y][x] = TILE_FLOOR;
-      }
+      gameWorld[y][x] = TILE_GRASS;
     }
   }
 
-  // Create rooms and corridors
-  createRoom(20, 20, 40, 40);
-  createRoom(80, 80, 60, 60);
-  createRoom(20, 120, 50, 50);
-  createRoom(120, 20, 60, 40);
+  // Add borders
+  for (let x = 0; x < WORLD_WIDTH; x++) {
+    gameWorld[0][x] = TILE_WALL;
+    gameWorld[WORLD_HEIGHT - 1][x] = TILE_WALL;
+  }
+  for (let y = 0; y < WORLD_HEIGHT; y++) {
+    gameWorld[y][0] = TILE_WALL;
+    gameWorld[y][WORLD_WIDTH - 1] = TILE_WALL;
+  }
 
-  createCorridor(50, 30, 80, 30);
-  createCorridor(30, 50, 30, 120);
-  createCorridor(130, 50, 130, 80);
-  createCorridor(70, 110, 120, 110);
+    // Predefined rooms and structures
+  createRoom(10, 10, 30, 20); // Main hall
+  createRoom(50, 5, 20, 15);  // Library
+  createRoom(80, 20, 25, 25); // Armory
+  createRoom(20, 50, 40, 30); // Dining hall
+  createRoom(70, 60, 30, 20); // Throne room
+
+  // Corridors connecting rooms
+  createCorridor(40, 20, 50, 20); // Main hall to library
+  createCorridor(70, 30, 80, 30); // Library to armory
+  createCorridor(30, 30, 30, 50); // Main hall to dining hall
+  createCorridor(60, 65, 70, 65); // Dining hall to throne room
+
+  // Rivers
+  createRiver(0, 40, WORLD_WIDTH - 1, 40);
+  createRiver(60, 0, 60, WORLD_HEIGHT - 1);
+
+  // Horizontal bridge spanning across at y = 40 (for vertical river)
+  gameWorld[40][30] = TILE_BRIDGE; // Left bridge tile
+  gameWorld[41][30] = TILE_BRIDGE; // Right bridge tile
+
+  // Another horizontal bridge spanning across at y = 40 (for vertical river)
+  gameWorld[40][70] = TILE_BRIDGE; // Left bridge tile
+  gameWorld[41][70] = TILE_BRIDGE; // Right bridge tile
+
+  // Vertical bridge spanning across at x = 60 (for horizontal river)
+  gameWorld[12][60] = TILE_BRIDGE; // Top bridge tile
+  gameWorld[12][61] = TILE_BRIDGE; // Bottom bridge tile
+
+  // Another vertical bridge spanning across at x = 60 (for horizontal river)
+  gameWorld[65][60] = TILE_BRIDGE; // Top bridge tile
+  gameWorld[65][61] = TILE_BRIDGE; // Bottom bridge tile
+
+
+
+  // Sand areas (beach)
+  createArea(TILE_SAND, 0, WORLD_HEIGHT - 10, WORLD_WIDTH, 10);
+
+  // Forests
+  createForest(15, 15, 20, 20);
+  createForest(65, 50, 15, 15);
+
 }
 
-// Create a room with walls and a door
+// Create a room with walls and doors at fixed positions
 function createRoom(x, y, width, height) {
+  // Build the room with walls and floors
   for (let i = y; i < y + height; i++) {
     for (let j = x; j < x + width; j++) {
       if (i === y || i === y + height - 1 || j === x || j === x + width - 1) {
@@ -191,7 +240,77 @@ function createRoom(x, y, width, height) {
       }
     }
   }
-  gameWorld[y + Math.floor(height / 2)][x] = TILE_DOOR; // Place door on the left wall
+
+  // Place doors at fixed positions
+  placeDoor('top', x, y, width, height);
+  placeDoor('bottom', x, y, width, height);
+  placeDoor('left', x, y, width, height);
+  placeDoor('right', x, y, width, height);
+}
+
+// Place doors at fixed positions
+function placeDoor(wall, x, y, width, height) {
+  let doorX, doorY;
+  switch (wall) {
+    case 'top':
+      doorX = x + Math.floor(width / 2);
+      doorY = y;
+      break;
+    case 'bottom':
+      doorX = x + Math.floor(width / 2);
+      doorY = y + height - 1;
+      break;
+    case 'left':
+      doorX = x;
+      doorY = y + Math.floor(height / 2);
+      break;
+    case 'right':
+      doorX = x + width - 1;
+      doorY = y + Math.floor(height / 2);
+      break;
+    default:
+      return;
+  }
+  if (gameWorld[doorY][doorX] === TILE_WALL) {
+    gameWorld[doorY][doorX] = TILE_DOOR;
+  }
+}
+
+// Create a river horizontally or vertically
+function createRiver(x1, y1, x2, y2) {
+  if (x1 === x2) {
+    // Vertical river
+    for (let y = y1; y <= y2; y++) {
+      gameWorld[y][x1] = TILE_WATER;
+      gameWorld[y][x1 + 1] = TILE_WATER;
+    }
+  } else if (y1 === y2) {
+    // Horizontal river
+    for (let x = x1; x <= x2; x++) {
+      gameWorld[y1][x] = TILE_WATER;
+      gameWorld[y1 + 1][x] = TILE_WATER;
+    }
+  }
+}
+
+// Create a forest area
+function createForest(x, y, width, height) {
+  for (let i = y; i < y + height; i++) {
+    for (let j = x; j < x + width; j++) {
+      gameWorld[i][j] = TILE_GRASS; // Use a different tile if you have a forest tile
+    }
+  }
+}
+
+// Create an area with a specific tile type
+function createArea(tileType, x, y, width, height) {
+  for (let i = y; i < y + height; i++) {
+    for (let j = x; j < x + width; j++) {
+      if (i >= 0 && i < WORLD_HEIGHT && j >= 0 && j < WORLD_WIDTH) {
+        gameWorld[i][j] = tileType;
+      }
+    }
+  }
 }
 
 // Create a corridor between two points
@@ -349,15 +468,35 @@ socket.on('playerDamaged', data => {
 
 // Adjust enemy properties upon receiving data from server
 socket.on('updateEnemies', serverEnemies => {
-  enemies = {};
+  // Update existing enemies and add new ones
   Object.values(serverEnemies).forEach(enemyData => {
-    const enemy = { ...enemyData };
-    enemy.sprite = spriteImages.enemy;
-    enemy.frameCount = spritesToLoad.find(s => s.key === 'enemy').frames;
-    enemy.animationTimer = 0;
-    enemies[enemy.id] = enemy;
+    let enemy = enemies[enemyData.id];
+    if (enemy) {
+      // Update enemy properties
+      Object.assign(enemy, enemyData);
+    } else {
+      // New enemy
+      enemy = { ...enemyData };
+      enemy.sprite = spriteImages.enemy;
+      enemy.frameCount = spritesToLoad.find(s => s.key === 'enemy').frames;
+      enemy.animationTimer = 0;
+      enemy.frameIndex = 0;
+      enemies[enemy.id] = enemy;
+    }
+  });
+  // Remove enemies not in serverEnemies
+  Object.keys(enemies).forEach(id => {
+    if (!serverEnemies[id]) {
+      delete enemies[id];
+    }
   });
 });
+
+// Handle 'updateCopper' event to update player's copper amount
+socket.on('updateCopper', (copper) => {
+  player.copper = copper;
+  updateInventoryDisplay(); // Update inventory display to show new copper amount
+}); 
 
 // Handle enemy killed
 socket.on('enemyKilled', enemyId => {
@@ -369,7 +508,14 @@ socket.on('attackError', message => {
   showMessage(message);
 });
 
-// **Updated updatePlayerPosition function with improved collision handling**
+// Handle 'playerHealed' event from server
+socket.on('playerHealed', data => {
+  if (player.id === socket.id) {
+    player.health = data.health;
+  }
+});
+
+// Modified updatePlayerPosition function to handle door alignment and safe zone spawning
 function updatePlayerPosition(deltaTime) {
   let dx = 0, dy = 0;
   player.moving = false;
@@ -397,16 +543,50 @@ function updatePlayerPosition(deltaTime) {
   const bottomLeftTile = getTileAt(newX - player.width / 2, newY + player.height / 2 - 1);
   const bottomRightTile = getTileAt(newX + player.width / 2 - 1, newY + player.height / 2 - 1);
 
-  // Impassable tiles (doors are now pass-through)
-  const impassableTiles = [TILE_WALL];
-
   const collidesWithImpassable = [topLeftTile, topRightTile, bottomLeftTile, bottomRightTile]
     .some(tile => impassableTiles.includes(tile));
 
   if (!collidesWithImpassable) {
     player.x = newX;
     player.y = newY;
+  } else {
+    // Check for doors or bridges
+    const passableTiles = [TILE_DOOR, TILE_BRIDGE];
+    const passableCollision = [topLeftTile, topRightTile, bottomLeftTile, bottomRightTile]
+      .some(tile => passableTiles.includes(tile));
+
+    if (passableCollision) {
+      const passablePosition = findNearestPassableTile(player.x, player.y);
+      if (passablePosition) {
+        player.x = passablePosition.x;
+        player.y = passablePosition.y;
+      }
+    }
   }
+
+
+  // Function to find the nearest passable tile and align player to it
+function findNearestPassableTile(x, y) {
+  const tileX = Math.floor(x / TILE_SIZE);
+  const tileY = Math.floor(y / TILE_SIZE);
+
+  // Check adjacent tiles for a door or bridge
+  const directions = [
+    { dx: -1, dy: 0 }, // Left
+    { dx: 1, dy: 0 },  // Right
+    { dx: 0, dy: -1 }, // Up
+    { dx: 0, dy: 1 },  // Down
+  ];
+
+  for (let dir of directions) {
+    const nx = tileX + dir.dx;
+    const ny = tileY + dir.dy;
+    if (gameWorld[ny] && (gameWorld[ny][nx] === TILE_DOOR || gameWorld[ny][nx] === TILE_BRIDGE)) {
+      return { x: nx * TILE_SIZE + TILE_SIZE / 2, y: ny * TILE_SIZE + TILE_SIZE / 2 };
+    }
+  }
+  return null;
+}
 
   // Check for item pickup
   Object.values(items).forEach(item => {
@@ -420,6 +600,29 @@ function updatePlayerPosition(deltaTime) {
     player.lastFrameIndex = player.frameIndex;
     socket.emit('playerMovement', { x: player.x, y: player.y, direction: player.direction, frameIndex: player.frameIndex, health: player.health });
   }
+}
+
+// Function to find the nearest door and align player to it
+function findNearestDoor(x, y) {
+  const tileX = Math.floor(x / TILE_SIZE);
+  const tileY = Math.floor(y / TILE_SIZE);
+
+  // Check adjacent tiles for a door
+  const directions = [
+    { dx: -1, dy: 0 }, // Left
+    { dx: 1, dy: 0 },  // Right
+    { dx: 0, dy: -1 }, // Up
+    { dx: 0, dy: 1 },  // Down
+  ];
+
+  for (let dir of directions) {
+    const nx = tileX + dir.dx;
+    const ny = tileY + dir.dy;
+    if (gameWorld[ny] && gameWorld[ny][nx] === TILE_DOOR) {
+      return { x: nx * TILE_SIZE + TILE_SIZE / 2, y: ny * TILE_SIZE + TILE_SIZE / 2 };
+    }
+  }
+  return null;
 }
 
 // Helper function to check collision at a given position
@@ -470,13 +673,18 @@ function updateCameraPosition() {
 
 // Draw the safe zone outlines
 function drawSafeZones() {
-  ctx.strokeStyle = 'green';
-  ctx.lineWidth = 2;
-
   safeZones.forEach(zone => {
+    // Fill the safe zone with a semi-transparent green
+    ctx.fillStyle = 'rgba(0, 255, 0, 0.2)';
+    ctx.fillRect(zone.x, zone.y, zone.width, zone.height);
+    
+    // Draw the border
+    ctx.strokeStyle = 'green';
+    ctx.lineWidth = 2;
     ctx.strokeRect(zone.x, zone.y, zone.width, zone.height);
   });
 }
+
 
 // Updated drawBackground function to include safe zone outlines
 function drawBackground() {
@@ -561,11 +769,6 @@ function isInSafeZone(x, y) {
 function handleAttack() {
   if (keysPressed[' ']) { // Spacebar for attack
     if (!player.attackCooldown || Date.now() - player.attackCooldown > 500) { // 500ms cooldown
-      // Check if the player is in a safe zone
-      if (isInSafeZone(player.x, player.y)) {
-        showMessage('You cannot attack in a safe zone!');
-        return;
-      }
       player.attackCooldown = Date.now();
       player.isAttacking = true;
       player.attackFrameIndex = 0;
@@ -584,18 +787,16 @@ function handleAttack() {
         }
       });
 
-      // If no enemy is close, check for players
-      if (!targetId) {
-        Object.values(players).forEach(p => {
-          if (p.id !== player.id) {
-            const distance = Math.hypot(player.x - p.x, player.y - p.y);
-            if (distance < attackRange && distance < minDistance) {
-              minDistance = distance;
-              targetId = p.id;
-            }
+      // Check for players
+      Object.values(players).forEach(p => {
+        if (p.id !== player.id) {
+          const distance = Math.hypot(player.x - p.x, player.y - p.y);
+          if (distance < attackRange && distance < minDistance) {
+            minDistance = distance;
+            targetId = p.id;
           }
-        });
-      }
+        }
+      });
 
       if (targetId) {
         socket.emit('attack', { targetId, weapon: player.equippedItem });
@@ -741,54 +942,159 @@ document.getElementById('inventoryList').addEventListener('click', e => {
   }
 });
 
-// Function to initiate a trade
-function initiateTrade(offeredItemIndex) {
-  const nearbyPlayers = getNearbyPlayers(100); // Replace 100 with your trade range
-  if (nearbyPlayers.length === 0) {
-    alert('No players nearby to trade with.');
-    return;
-  }
+// Function to open the trade modal
+function openTradeModal() {
+  const tradeModal = document.getElementById('tradeModal');
+  const playerSelect = document.getElementById('playerSelect');
+  const yourItems = document.getElementById('yourItems');
 
-  const playerNames = nearbyPlayers.map(p => `${p.name} (ID: ${p.id})`).join('\n');
-  const recipientChoice = prompt(`Choose a player to trade with:\n${playerNames}`);
-  const recipient = nearbyPlayers.find(p => `${p.name} (ID: ${p.id})` === recipientChoice);
-
-  if (recipient) {
-    const requestedItemIndex = prompt('Enter the index of the item you want from the other player:');
-    socket.emit('tradeRequest', {
-      recipientId: recipient.id,
-      offeredItemIndex,
-      requestedItemIndex: parseInt(requestedItemIndex)
-    });
-  } else {
-    alert('Invalid selection.');
-  }
-}
-
-// Function to get nearby players within a certain distance
-function getNearbyPlayers(range) {
-  return Object.values(players).filter(p => {
+  // Populate player list
+  playerSelect.innerHTML = '';
+  Object.values(players).forEach(p => {
     if (p.id !== player.id) {
-      const distance = Math.hypot(player.x - p.x, player.y - p.y);
-      return distance <= range;
+      const option = document.createElement('option');
+      option.value = p.id;
+      option.textContent = p.name;
+      playerSelect.appendChild(option);
     }
-    return false;
   });
+
+  // Populate your items
+  yourItems.innerHTML = '';
+  player.inventory.forEach((item, index) => {
+    const li = document.createElement('li');
+    li.textContent = item.type;
+    li.dataset.index = index;
+    yourItems.appendChild(li);
+  });
+
+  tradeModal.style.display = 'flex';
 }
+
+// Event listener to open trade modal
+document.getElementById('tradeButton').addEventListener('click', openTradeModal);
+
+// Event listener for sending trade request
+document.getElementById('sendTradeRequest').addEventListener('click', () => {
+  const playerSelect = document.getElementById('playerSelect');
+  const selectedPlayerId = playerSelect.value;
+  const yourItems = document.getElementById('yourItems');
+  const selectedItemIndex = yourItems.querySelector('li.selected')?.dataset.index;
+  const offeredCopper = parseInt(document.getElementById('offerCopper').value) || 0;
+
+  if (selectedPlayerId && (selectedItemIndex !== undefined || offeredCopper > 0)) {
+    socket.emit('tradeRequest', {
+      recipientId: selectedPlayerId,
+      offeredItemIndex: selectedItemIndex ? parseInt(selectedItemIndex) : null,
+      offeredCopper: offeredCopper
+    });
+    closeTradeModal();
+  } else {
+    alert('Please select a player and an item or copper to offer.');
+  }
+});
+
+// Event listener for closing trade modal
+document.getElementById('closeTradeModal').addEventListener('click', closeTradeModal);
+
+function closeTradeModal() {
+  document.getElementById('tradeModal').style.display = 'none';
+}
+
+// Handle item selection in trade modal
+document.getElementById('yourItems').addEventListener('click', e => {
+  if (e.target && e.target.nodeName === 'LI') {
+    const lis = document.querySelectorAll('#yourItems li');
+    lis.forEach(li => li.classList.remove('selected'));
+    e.target.classList.add('selected');
+  }
+});
 
 // Handle incoming trade requests
 socket.on('tradeRequest', data => {
-  const accept = confirm(`${data.senderName} wants to trade their ${data.offeredItem.type} for your ${data.requestedItem.type}. Accept?`);
-  if (accept) {
-    socket.emit('acceptTrade', data.senderId);
+  const acceptTrade = confirm(`${data.senderName} wants to trade with you. Do you accept?`);
+  if (acceptTrade) {
+    // Open trade accept modal
+    openTradeAcceptModal(data);
   } else {
     socket.emit('declineTrade', data.senderId);
   }
 });
 
+function openTradeAcceptModal(data) {
+  // Implement the trade accept modal where you can select items or copper to trade
+  // For simplicity, let's assume you can select an item or enter copper to trade back
+
+  const acceptModal = document.createElement('div');
+  acceptModal.id = 'acceptTradeModal';
+  acceptModal.style.position = 'fixed';
+  acceptModal.style.top = '0';
+  acceptModal.style.left = '0';
+  acceptModal.style.width = '100%';
+  acceptModal.style.height = '100%';
+  acceptModal.style.backgroundColor = 'rgba(0,0,0,0.5)';
+  acceptModal.style.display = 'flex';
+  acceptModal.style.justifyContent = 'center';
+  acceptModal.style.alignItems = 'center';
+  acceptModal.style.zIndex = '30';
+
+  const content = document.createElement('div');
+  content.style.backgroundColor = 'white';
+  content.style.padding = '20px';
+  content.style.borderRadius = '5px';
+
+  content.innerHTML = `
+    <h2>Trade Offer from ${data.senderName}</h2>
+    <p>They offer: ${data.offeredItem ? data.offeredItem.type : ''} ${data.offeredCopper ? 'and ' + data.offeredCopper + ' copper' : ''}</p>
+    <h3>Select Item to Trade</h3>
+    <ul id="theirItems"></ul>
+    <h3>Offer Copper</h3>
+    <input type="number" id="requestedCopper" min="0" value="0" />
+    <button id="confirmTrade">Confirm Trade</button>
+    <button id="cancelTrade">Cancel</button>
+  `;
+
+  acceptModal.appendChild(content);
+  document.body.appendChild(acceptModal);
+
+  const theirItems = content.querySelector('#theirItems');
+  player.inventory.forEach((item, index) => {
+    const li = document.createElement('li');
+    li.textContent = item.type;
+    li.dataset.index = index;
+    theirItems.appendChild(li);
+  });
+
+  theirItems.addEventListener('click', e => {
+    if (e.target && e.target.nodeName === 'LI') {
+      const lis = theirItems.querySelectorAll('li');
+      lis.forEach(li => li.classList.remove('selected'));
+      e.target.classList.add('selected');
+    }
+  });
+
+  content.querySelector('#confirmTrade').addEventListener('click', () => {
+    const selectedItemIndex = theirItems.querySelector('li.selected')?.dataset.index;
+    const requestedCopper = parseInt(content.querySelector('#requestedCopper').value) || 0;
+
+    socket.emit('acceptTrade', {
+      senderId: data.senderId,
+      requestedItemIndex: selectedItemIndex ? parseInt(selectedItemIndex) : null,
+      requestedCopper: requestedCopper
+    });
+    document.body.removeChild(acceptModal);
+  });
+
+  content.querySelector('#cancelTrade').addEventListener('click', () => {
+    socket.emit('declineTrade', data.senderId);
+    document.body.removeChild(acceptModal);
+  });
+}
+
 // Handle trade success
 socket.on('tradeSuccess', data => {
   player.inventory = data.newInventory;
+  player.copper = data.copper || player.copper;
   updateInventoryDisplay();
   alert('Trade successful!');
 });
@@ -915,25 +1221,10 @@ function updateInventoryDisplay() {
       li.style.backgroundColor = 'yellow';
     }
 
-    // Add an Equip button
-    const equipButton = document.createElement('button');
-    equipButton.textContent = 'Equip';
-    equipButton.onclick = () => {
-      player.equippedItem = item;
-      updateInventoryDisplay();
-    };
-    li.appendChild(equipButton);
-
-    // Add a Trade button
-    const tradeButton = document.createElement('button');
-    tradeButton.textContent = 'Trade';
-    tradeButton.onclick = () => {
-      initiateTrade(index);
-    };
-    li.appendChild(tradeButton);
-
     inventoryList.appendChild(li);
   });
+  // Update HUD to display copper
+  drawHUD();
 }
 
 // Use item (e.g., potion)
@@ -962,8 +1253,8 @@ function drawHUD() {
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
 
-  let hudX = 10; // Adjusted X position to prevent cutoff
-  let hudY = 10; // Starting Y position
+  let hudX = 10;
+  let hudY = 10;
 
   ctx.fillText(`Health: ${player.health}/${player.maxHealth}`, hudX, hudY);
   hudY += 30;
@@ -988,4 +1279,33 @@ function updateEnemyAnimations(deltaTime) {
       enemy.animationTimer = 0;
     }
   });
+}
+
+// Function to open the trade modal
+function openTradeModal() {
+  const tradeModal = document.getElementById('tradeModal');
+  const playerSelect = document.getElementById('playerSelect');
+  const yourItems = document.getElementById('yourItems');
+
+  // Populate player list
+  playerSelect.innerHTML = '';
+  Object.values(players).forEach(p => {
+    if (p.id !== player.id) {
+      const option = document.createElement('option');
+      option.value = p.id;
+      option.textContent = p.name;
+      playerSelect.appendChild(option);
+    }
+  });
+
+  // Populate your items
+  yourItems.innerHTML = '';
+  player.inventory.forEach((item, index) => {
+    const li = document.createElement('li');
+    li.textContent = item.type;
+    li.dataset.index = index;
+    yourItems.appendChild(li);
+  });
+
+  tradeModal.style.display = 'flex';
 }

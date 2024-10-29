@@ -114,6 +114,12 @@ let gameWorld = []; // Define the game world on the server for collision detecti
 const adjectives = ['Quick', 'Lazy', 'Jolly', 'Brave', 'Clever', 'Wise', 'Fierce', 'Gentle', 'Loyal'];
 const nouns = ['Fox', 'Bear', 'Dragon', 'Wolf', 'Tiger', 'Rabbit', 'Eagle', 'Owl', 'Lion'];
 
+// Safe zones
+const safeZones = [
+  { x: 20 * TILE_SIZE, y: 50 * TILE_SIZE, width: 40 * TILE_SIZE, height: 30 * TILE_SIZE },
+  // Add more safe zones if needed
+];
+
 // Initialize the game world
 initializeGameWorld();
 
@@ -148,6 +154,7 @@ function initializeGameWorld() {
   createCorridor(130, 50, 130, 80);
   createCorridor(70, 110, 120, 110);
 }
+
 
 // Create a room with walls and a door
 function createRoom(x, y, width, height) {
@@ -185,12 +192,6 @@ function getTileAt(x, y) {
   }
   return gameWorld[tileY][tileX];
 }
-
-// Safe zones
-const safeZones = [
-  { x: 5 * TILE_SIZE, y: 5 * TILE_SIZE, width: 20 * TILE_SIZE, height: 20 * TILE_SIZE },
-  // Add more safe zones if needed
-];
 
 // Helper function to check if a position is within a safe zone
 function isInSafeZone(x, y) {
@@ -261,20 +262,17 @@ function initializeEnemies() {
 
 // Adjust player spawning to ensure they spawn inside valid areas (safe zones)
 function getValidSpawnPoint() {
-  // Define spawn areas (safe zones)
-  const spawnAreas = [
-    { x: 5 * TILE_SIZE, y: 5 * TILE_SIZE, width: 20 * TILE_SIZE, height: 20 * TILE_SIZE },
-    // Add more spawn areas as needed
-  ];
-
-  // Choose a random spawn area
-  const area = spawnAreas[Math.floor(Math.random() * spawnAreas.length)];
-
-  // Generate a random point within the area
-  const x = area.x + Math.random() * area.width;
-  const y = area.y + Math.random() * area.height;
-
-  return { x, y };
+  const maxAttempts = 100;
+  for (let i = 0; i < maxAttempts; i++) {
+    const x = Math.random() * WORLD_WIDTH;
+    const y = Math.random() * WORLD_HEIGHT;
+    const tile = getTileAt(x, y);
+    if (tile === TILE_FLOOR && isInSafeZone(x, y)) {
+      return { x, y };
+    }
+  }
+  // If no valid spawn point found, return a default safe point
+  return { x: safeZones[0].x + safeZones[0].width / 2, y: safeZones[0].y + safeZones[0].height / 2 };
 }
 
 // Generate a reward code
@@ -365,33 +363,38 @@ function updateEnemies(deltaTime) {
           // Attack the player
           if (!enemy.attackCooldown || Date.now() - enemy.attackCooldown > 1000) { // 1 second cooldown
             enemy.attackCooldown = Date.now();
-            // Emit an attack animation event to clients (implement if needed)
             io.emit('enemyAttack', { enemyId: enemy.id });
 
-            let damage = 10;
-            // Apply shield defense if equipped
-            const shield = targetPlayer.inventory.find(item => item.type === 'shield');
-            if (shield) {
-              damage -= shield.defense;
-              damage = Math.max(0, damage);
-            }
-            targetPlayer.health -= damage;
-            if (targetPlayer.health <= 0) {
-              targetPlayer.health = 0;
-              io.emit('playerKilled', targetPlayer.id);
-              // Remove player data
-              delete players[targetPlayer.id];
-              io.emit('playerDisconnected', targetPlayer.id);
-              const targetSocket = io.sockets.sockets.get(targetPlayer.id);
-              if (targetSocket) {
-                targetSocket.disconnect(true);
-              }
+            // Check if player is in safe zone
+            if (isInSafeZone(targetPlayer.x, targetPlayer.y)) {
+              // Player is invincible in safe zone
+              // Do not apply damage
             } else {
-              // Notify the player of the damage
-              io.to(targetPlayer.id).emit('playerDamaged', {
-                playerId: targetPlayer.id,
-                health: targetPlayer.health
-              });
+              let damage = 10;
+              // Apply shield defense if equipped
+              const shield = targetPlayer.inventory.find(item => item.type === 'shield');
+              if (shield) {
+                damage -= shield.defense;
+                damage = Math.max(0, damage);
+              }
+              targetPlayer.health -= damage;
+              if (targetPlayer.health <= 0) {
+                targetPlayer.health = 0;
+                io.emit('playerKilled', targetPlayer.id);
+                // Remove player data
+                delete players[targetPlayer.id];
+                io.emit('playerDisconnected', targetPlayer.id);
+                const targetSocket = io.sockets.sockets.get(targetPlayer.id);
+                if (targetSocket) {
+                  targetSocket.disconnect(true);
+                }
+              } else {
+                // Notify the player of the damage
+                io.to(targetPlayer.id).emit('playerDamaged', {
+                  playerId: targetPlayer.id,
+                  health: targetPlayer.health
+                });
+              }
             }
           }
         }
@@ -407,12 +410,12 @@ function broadcastEnemies() {
 
 // Handle socket.io connections
 io.on('connection', (socket) => {
-  console.log(`A user connected: ${socket.id}`);
+  
   const playerName = generatePlayerName();
-
+  console.log(`A user connected: Name: ${playerName} Socket ID:${socket.id}`);
   // Get a valid spawn point
   const spawnPoint = getValidSpawnPoint();
-
+  
   // Initialize player data
   players[socket.id] = {
     id: socket.id,
@@ -430,6 +433,8 @@ io.on('connection', (socket) => {
     copper: 0,
     frameIndex: 0
   };
+
+  socket.emit('chatMessage', { playerId: socket.id, message: `You joined the game as ${playerName}` });
 
   // Function to get sanitized player data
   function getPlayerData(player) {
@@ -460,23 +465,23 @@ io.on('connection', (socket) => {
   // Broadcast new player's arrival to other players
   socket.broadcast.emit('newPlayer', getPlayerData(players[socket.id]));
 
-  // Update player position and direction based on movement
+  // Remove health update from playerMovement
   socket.on('playerMovement', (data) => {
     if (players[socket.id]) {
       players[socket.id].x = data.x;
       players[socket.id].y = data.y;
       players[socket.id].direction = data.direction;
       players[socket.id].frameIndex = data.frameIndex;
-      players[socket.id].health = data.health;
+      players[socket.id].moving = data.moving;
 
-      // Broadcast the updated player position and frameIndex to other players
+      // Broadcast position and movement without health
       socket.broadcast.emit('playerMoved', {
         playerId: socket.id,
         x: data.x,
         y: data.y,
         direction: data.direction,
         frameIndex: data.frameIndex,
-        health: data.health
+        moving: data.moving
       });
     }
   });
@@ -523,13 +528,43 @@ io.on('connection', (socket) => {
       damage = weapon.damage;
     }
   
-    // Prevent attacking other players
     if (players[targetId]) {
-      // Player is trying to attack another player
-      socket.emit('attackError', 'You cannot attack other players.');
-    }
-    // Attack enemy
-    else if (enemies[targetId]) {
+      // Player is attacking another player
+      const targetPlayer = players[targetId];
+      // If target is in safe zone, prevent damage
+      if (isInSafeZone(targetPlayer.x, targetPlayer.y)) {
+        socket.emit('attackError', 'You cannot attack players in a safe zone.');
+      } else {
+        // Apply damage to target player
+        let finalDamage = damage;
+        // Apply shield defense if equipped
+        const shield = targetPlayer.inventory.find(item => item.type === 'shield');
+        if (shield) {
+          finalDamage -= shield.defense;
+          finalDamage = Math.max(0, finalDamage);
+        }
+        targetPlayer.health -= finalDamage;
+        if (targetPlayer.health <= 0) {
+          targetPlayer.health = 0;
+          io.emit('playerKilled', targetPlayer.id);
+          // Remove player data
+          delete players[targetPlayer.id];
+          io.emit('playerDisconnected', targetPlayer.id);
+          const targetSocket = io.sockets.sockets.get(targetPlayer.id);
+          if (targetSocket) {
+            targetSocket.disconnect(true);
+          }
+        } else {
+          // Notify the target player of the damage
+          io.to(targetPlayer.id).emit('playerDamaged', {
+            playerId: targetPlayer.id,
+            health: targetPlayer.health
+          });
+        }
+        // Notify attacker of successful attack
+        socket.emit('attackSuccess', { targetId: targetId, damage: finalDamage });
+      }
+    } else if (enemies[targetId]) {
       const enemy = enemies[targetId];
       enemy.health -= damage;
       if (enemy.health <= 0) {
@@ -542,75 +577,108 @@ io.on('connection', (socket) => {
         // Remove the enemy from the game
         delete enemies[targetId];
         io.emit('enemyKilled', targetId);
-  
-        // Generate a code as a reward (optional)
-        const rewardCode = generateRewardCode();
-        io.to(socket.id).emit('rewardCode', rewardCode);
       }
     }
   });
   
+
+  // Heal players in safe zones
+  setInterval(() => {
+    const now = Date.now();
+    const deltaTime = (now - lastUpdateTime) / 1000; // Convert to seconds
+    lastUpdateTime = now;
+
+    // Update enemies and broadcast their state
+    updateEnemies(deltaTime);
+    broadcastEnemies();
+
+    // Heal players in safe zones
+    Object.values(players).forEach(player => {
+      if (isInSafeZone(player.x, player.y)) {
+        player.health += 1; // Heal rate per update
+        if (player.health > player.maxHealth) {
+          player.health = player.maxHealth;
+        }
+        // Send updated health to the player
+        io.to(player.id).emit('playerHealed', { health: player.health });
+      }
+    });
+  }, 1000 / 5); // 5 updates per second
+
 
   // Handle trade requests
-  socket.on('tradeRequest', (data) => {
-    const recipientId = data.recipientId;
-    const offeredItemIndex = data.offeredItemIndex;
-    const requestedItemIndex = data.requestedItemIndex;
+socket.on('tradeRequest', (data) => {
+  const recipientId = data.recipientId;
+  const offeredItemIndex = data.offeredItemIndex;
+  const offeredCopper = data.offeredCopper || 0;
+  const sender = players[socket.id];
+  const recipient = players[recipientId];
 
-    const sender = players[socket.id];
-    const recipient = players[recipientId];
+  if (sender && recipient && (sender.inventory[offeredItemIndex] || offeredCopper > 0)) {
+    // Send trade request to recipient
+    io.to(recipientId).emit('tradeRequest', {
+      senderId: socket.id,
+      senderName: sender.name,
+      offeredItem: sender.inventory[offeredItemIndex],
+      offeredCopper: offeredCopper
+    });
 
-    if (sender && recipient && sender.inventory[offeredItemIndex] && recipient.inventory[requestedItemIndex]) {
-      // Send trade request to recipient
-      io.to(recipientId).emit('tradeRequest', {
-        senderId: socket.id,
-        senderName: sender.name,
-        offeredItem: sender.inventory[offeredItemIndex],
-        requestedItem: recipient.inventory[requestedItemIndex]
-      });
+    // Store trade request data
+    sender.pendingTrade = {
+      recipientId,
+      offeredItemIndex,
+      offeredCopper
+    };
+  } else {
+    socket.emit('tradeError', 'Invalid trade request.');
+  }
+});
 
-      // Store trade request data
-      sender.pendingTrade = {
-        recipientId,
-        offeredItemIndex,
-        requestedItemIndex
-      };
-    } else {
-      socket.emit('tradeError', 'Invalid trade request.');
-    }
-  });
+socket.on('acceptTrade', (data) => {
+  const senderId = data.senderId;
+  const requestedItemIndex = data.requestedItemIndex;
+  const requestedCopper = data.requestedCopper || 0;
+  const sender = players[senderId];
+  const recipient = players[socket.id];
 
-  // Handle trade acceptance
-  socket.on('acceptTrade', (senderId) => {
-    const recipientId = socket.id;
-    const sender = players[senderId];
-    const recipient = players[recipientId];
+  if (sender && recipient && sender.pendingTrade && sender.pendingTrade.recipientId === socket.id) {
+    const { offeredItemIndex, offeredCopper } = sender.pendingTrade;
 
-    if (sender && recipient && sender.pendingTrade && sender.pendingTrade.recipientId === recipientId) {
-      const { offeredItemIndex, requestedItemIndex } = sender.pendingTrade;
-
-      // Swap items
-      const offeredItem = sender.inventory[offeredItemIndex];
-      const requestedItem = recipient.inventory[requestedItemIndex];
-
-      if (offeredItem && requestedItem) {
-        sender.inventory[offeredItemIndex] = requestedItem;
-        recipient.inventory[requestedItemIndex] = offeredItem;
-
-        // Notify both players
-        io.to(senderId).emit('tradeSuccess', { newInventory: sender.inventory });
-        io.to(recipientId).emit('tradeSuccess', { newInventory: recipient.inventory });
-
-        // Clear pending trade
-        delete sender.pendingTrade;
-      } else {
-        io.to(senderId).emit('tradeError', 'Trade failed. Items no longer available.');
-        io.to(recipientId).emit('tradeError', 'Trade failed. Items no longer available.');
+    // Validate that both players have the items/copper they are trading
+    const offeredItem = sender.inventory[offeredItemIndex];
+    const recipientItem = recipient.inventory[requestedItemIndex];
+    if ((offeredItem || offeredCopper > 0) && (recipientItem || requestedCopper > 0)) {
+      if (offeredItem) {
+        sender.inventory.splice(offeredItemIndex, 1);
+        recipient.inventory.push(offeredItem);
       }
+      if (offeredCopper > 0) {
+        sender.copper -= offeredCopper;
+        recipient.copper += offeredCopper;
+      }
+      if (recipientItem) {
+        recipient.inventory.splice(requestedItemIndex, 1);
+        sender.inventory.push(recipientItem);
+      }
+      if (requestedCopper > 0) {
+        recipient.copper -= requestedCopper;
+        sender.copper += requestedCopper;
+      }
+
+      // Notify both players
+      io.to(senderId).emit('tradeSuccess', { newInventory: sender.inventory, copper: sender.copper });
+      io.to(socket.id).emit('tradeSuccess', { newInventory: recipient.inventory, copper: recipient.copper });
+
+      // Clear pending trade
+      delete sender.pendingTrade;
     } else {
-      socket.emit('tradeError', 'No valid trade to accept.');
+      io.to(senderId).emit('tradeError', 'Trade failed. Items or copper no longer available.');
+      io.to(socket.id).emit('tradeError', 'Trade failed. Items or copper no longer available.');
     }
-  });
+  } else {
+    socket.emit('tradeError', 'No valid trade to accept.');
+  }
+});
 
   // Handle trade decline
   socket.on('declineTrade', (senderId) => {
